@@ -240,23 +240,25 @@ export function BatchDetailPage() {
                 <div className="border-t border-slate-100 my-1" />
                 <Menu.Item>
                   {({ active }) => (
-                    <div className="relative group">
-                      <button
-                        onClick={() => !hasProcessing && exportToCSV(batch)}
-                        disabled={hasProcessing}
-                        className={`w-full text-left px-4 py-2 text-sm ${
-                          active ? 'bg-purple-50 text-purple-900' : 'text-slate-700'
-                        } ${hasProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        Export All
-                      </button>
+                    <button
+                      onClick={() => !hasProcessing && exportToCSV(batch)}
+                      disabled={hasProcessing}
+                      className={`w-full text-left px-4 py-2 text-sm ${
+                        active ? 'bg-purple-50 text-purple-900' : 'text-slate-700'
+                      } ${hasProcessing ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {hasProcessing && (
+                          <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                        )}
+                        <span className={hasProcessing ? 'text-slate-400' : ''}>Export All</span>
+                      </div>
                       {hasProcessing && (
-                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <p className="text-xs text-slate-400 mt-1">
                           Please wait while documents are being processed
-                          <div className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-slate-800" />
-                        </div>
+                        </p>
                       )}
-                    </div>
+                    </button>
                   )}
                 </Menu.Item>
               </Menu.Items>
