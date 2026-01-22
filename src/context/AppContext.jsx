@@ -15,7 +15,7 @@ export function AppProvider({ children }) {
       try {
         const parsed = JSON.parse(stored);
         // Restore Date objects
-        return parsed.map(batch => ({
+        const storedBatches = parsed.map(batch => ({
           ...batch,
           modifiedDate: new Date(batch.modifiedDate),
           createdDate: new Date(batch.createdDate),
@@ -25,6 +25,10 @@ export function AppProvider({ children }) {
             processedDate: doc.processedDate ? new Date(doc.processedDate) : null,
           })),
         }));
+        // Merge with initialBatches to include any new demo batches
+        const storedIds = new Set(storedBatches.map(b => b.id));
+        const newInitialBatches = initialBatches.filter(b => !storedIds.has(b.id));
+        return [...storedBatches, ...newInitialBatches];
       } catch {
         return initialBatches;
       }
