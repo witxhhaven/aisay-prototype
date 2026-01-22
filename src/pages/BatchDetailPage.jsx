@@ -23,10 +23,19 @@ import { exportToCSV, exportSingleDocument } from '../utils/export';
 import { getBatchStats } from '../data/mockData';
 
 export function BatchDetailPage() {
-  const { batchId } = useParams();
+  const { batchId, docId } = useParams();
   const navigate = useNavigate();
   const { getBatch } = useApp();
-  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+  const batch = getBatch(batchId);
+
+  // Find document index from URL param or default to 0
+  const getInitialDocIndex = () => {
+    if (!batch || !docId) return 0;
+    const index = batch.documents.findIndex(d => d.id === docId);
+    return index >= 0 ? index : 0;
+  };
+
+  const [currentDocIndex, setCurrentDocIndex] = useState(getInitialDocIndex);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
   const [zoom, setZoom] = useState(1);
@@ -44,7 +53,25 @@ export function BatchDetailPage() {
     setPanPosition({ x: 0, y: 0 });
   };
 
-  const batch = getBatch(batchId);
+  // Sync currentDocIndex when docId in URL changes
+  useEffect(() => {
+    if (batch && docId) {
+      const index = batch.documents.findIndex(d => d.id === docId);
+      if (index >= 0 && index !== currentDocIndex) {
+        setCurrentDocIndex(index);
+      }
+    }
+  }, [docId, batch]);
+
+  // Update URL when document changes (only if URL doesn't match)
+  useEffect(() => {
+    if (batch && batch.documents[currentDocIndex]) {
+      const newDocId = batch.documents[currentDocIndex].id;
+      if (newDocId !== docId) {
+        navigate(`/batch/${batchId}/${newDocId}`, { replace: true });
+      }
+    }
+  }, [currentDocIndex, batchId, batch, navigate, docId]);
 
   // Handle resize dragging and panning
   useEffect(() => {
