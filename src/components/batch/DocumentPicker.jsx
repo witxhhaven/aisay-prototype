@@ -53,15 +53,20 @@ export function DocumentPicker({ isOpen, onClose, documents, currentIndex, onSel
                 <div className="p-6 max-h-[70vh] overflow-y-auto">
                   <div className="grid grid-cols-4 gap-4">
                     {documents.map((doc, index) => (
-                      <div key={doc.id} className="relative">
-                        <DocumentThumbnail
-                          document={doc}
-                          isSelected={index === currentIndex}
-                          onClick={() => handleSelect(index)}
-                        />
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
-                          {index + 1}
+                      <div key={doc.id} className="flex flex-col">
+                        <div className="relative">
+                          <DocumentThumbnail
+                            document={doc}
+                            isSelected={index === currentIndex}
+                            onClick={() => handleSelect(index)}
+                          />
+                          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                            {index + 1}
+                          </div>
                         </div>
+                        <p className="mt-1 text-xs text-slate-500 text-center truncate px-1" title={doc.filename}>
+                          {doc.filename}
+                        </p>
                       </div>
                     ))}
                   </div>
