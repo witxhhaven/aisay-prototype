@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, Check, AlertCircle, X, FileText } from 'lucide-react';
+import { Upload, Check, AlertCircle, X, FileText, Trash2 } from 'lucide-react';
 import { Modal, Button, Input, Select } from '../shared';
 import { documentTypes } from '../../data/mockData';
 import { useApp } from '../../context/AppContext';
 
-export function PretrainedWizard({ isOpen, onClose }) {
+export function PretrainedWizard({ isOpen, onClose, editBatch = null }) {
   const navigate = useNavigate();
-  const { addBatch } = useApp();
-  const [step, setStep] = useState(1);
+  const { addBatch, updateBatch } = useApp();
+  const isEditMode = !!editBatch;
+
+  const [step, setStep] = useState(isEditMode ? 2 : 1);
   const [formData, setFormData] = useState({
     name: '',
     documentType: 'Passport',
@@ -16,12 +18,43 @@ export function PretrainedWizard({ isOpen, onClose }) {
     files: [],
   });
 
+  // Reset when modal opens or editBatch changes
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      if (editBatch) {
+        // Convert existing documents to file format for display
+        const existingFiles = editBatch.documents?.map(doc => ({
+          name: doc.filename,
+          size: doc.fileSize || 1000000,
+          valid: true,
+          isExisting: true,
+          id: doc.id,
+        })) || [];
+
+        setFormData({
+          name: editBatch.name,
+          documentType: editBatch.documentType || 'Passport',
+          model: editBatch.model || 'flagship',
+          files: existingFiles,
+        });
+      } else {
+        setFormData({
+          name: '',
+          documentType: 'Passport',
+          model: 'flagship',
+          files: [],
+        });
+      }
+    }
+  }, [isOpen, editBatch]);
+
   const resetForm = () => {
     setStep(1);
     setFormData({
-      name: '',
-      documentType: 'Passport',
-      model: 'flagship',
+      name: editBatch?.name || '',
+      documentType: editBatch?.documentType || 'Passport',
+      model: editBatch?.model || 'flagship',
       files: [],
     });
   };
@@ -40,6 +73,28 @@ export function PretrainedWizard({ isOpen, onClose }) {
   };
 
   const handleCreateBatch = () => {
+    if (isEditMode) {
+      // Update existing batch and regenerate extracted data
+      const updatedDocuments = editBatch.documents.map((doc, i) => ({
+        ...doc,
+        status: i < 3 ? 'processing' : 'completed',
+        extractedData: i >= 3 ? generateMockData(formData.documentType, i) : null,
+        processedDate: i >= 3 ? new Date() : null,
+        documentType: formData.documentType,
+      }));
+
+      updateBatch(editBatch.id, {
+        name: formData.name,
+        documentType: formData.documentType,
+        model: formData.model,
+        documents: updatedDocuments,
+        modifiedDate: new Date(),
+      });
+
+      handleClose();
+      return;
+    }
+
     // Create mock documents based on document type
     const mockDocCount = Math.floor(Math.random() * 8) + 3; // 3-10 documents
     const documents = Array.from({ length: mockDocCount }, (_, i) => ({
@@ -70,13 +125,11 @@ export function PretrainedWizard({ isOpen, onClose }) {
   const handleFileDrop = (e) => {
     e.preventDefault();
     // In a real app, we would process the files here
-    // For the mock, we just show some fake files
-    const mockFiles = [
-      { name: 'document_001.pdf', size: 2345678, valid: true },
-      { name: 'document_002.pdf', size: 1234567, valid: true },
-      { name: 'document_003.jpg', size: 987654, valid: true },
+    // For the mock, we add a new fake file
+    const newMockFiles = [
+      { name: `new_document_${Date.now()}.pdf`, size: 2345678, valid: true, isExisting: false },
     ];
-    setFormData({ ...formData, files: mockFiles });
+    setFormData({ ...formData, files: [...formData.files, ...newMockFiles] });
   };
 
   const removeFile = (index) => {
@@ -91,25 +144,17 @@ export function PretrainedWizard({ isOpen, onClose }) {
     3: 'Upload Documents',
   };
 
+  const totalSteps = 3;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      supertitle={`Step ${step} of 3`}
+      supertitle={`Pretrained Documents (Step ${step} of ${totalSteps})`}
       title={stepTitles[step]}
-      subtitle="Pretrained Documents"
       size="md"
+      progress={step / totalSteps}
     >
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="h-1 bg-slate-100 rounded-full">
-          <div
-            className="h-full bg-purple-600 rounded-full transition-all duration-300"
-            style={{ width: `${(step / 3) * 100}%` }}
-          />
-        </div>
-      </div>
-
       {/* Step 1: Batch Name */}
       {step === 1 && (
         <div className="space-y-6">
@@ -241,9 +286,9 @@ export function PretrainedWizard({ isOpen, onClose }) {
                     </div>
                     <button
                       onClick={() => removeFile(index)}
-                      className="p-1 text-slate-400 hover:text-slate-600"
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
@@ -255,7 +300,9 @@ export function PretrainedWizard({ isOpen, onClose }) {
             <Button variant="secondary" onClick={handleBack}>
               Back
             </Button>
-            <Button onClick={handleCreateBatch}>Create Batch</Button>
+            <Button onClick={handleCreateBatch}>
+              {isEditMode ? 'Re-run Batch' : 'Create Batch'}
+            </Button>
           </div>
         </div>
       )}

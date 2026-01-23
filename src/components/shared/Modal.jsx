@@ -2,13 +2,15 @@ import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 
-export function Modal({ isOpen, onClose, title, subtitle, supertitle, children, size = 'md' }) {
+export function Modal({ isOpen, onClose, title, subtitle, supertitle, children, size = 'md', progress = null }) {
   const sizes = {
     sm: 'max-w-md',
     md: 'max-w-xl',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
   };
+
+  const hasProgress = progress !== null;
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -39,7 +41,7 @@ export function Modal({ isOpen, onClose, title, subtitle, supertitle, children, 
               <Dialog.Panel
                 className={`w-full ${sizes[size]} transform overflow-hidden rounded-xl bg-white shadow-xl transition-all`}
               >
-                <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+                <div className={`flex items-start justify-between px-6 py-4 ${!hasProgress ? 'border-b border-slate-200' : ''}`}>
                   <div>
                     {supertitle && (
                       <p className="text-sm text-slate-500 mb-0.5">{supertitle}</p>
@@ -58,6 +60,14 @@ export function Modal({ isOpen, onClose, title, subtitle, supertitle, children, 
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+                {hasProgress && (
+                  <div className="h-1 bg-slate-100">
+                    <div
+                      className="h-full bg-purple-600 transition-all duration-300"
+                      style={{ width: `${progress * 100}%` }}
+                    />
+                  </div>
+                )}
                 <div className="px-6 py-4">{children}</div>
               </Dialog.Panel>
             </Transition.Child>

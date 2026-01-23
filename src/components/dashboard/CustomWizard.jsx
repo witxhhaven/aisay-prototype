@@ -1,30 +1,39 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Check, AlertCircle, X, Plus, Trash2 } from 'lucide-react';
 import { Modal, Button, Input, TextArea, Select } from '../shared';
 import { dataTypes } from '../../data/mockData';
 import { useApp } from '../../context/AppContext';
 
-export function CustomWizard({ isOpen, onClose }) {
+export function CustomWizard({ isOpen, onClose, editBatch = null }) {
   const navigate = useNavigate();
-  const { addBatch } = useApp();
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    name: '',
-    model: 'flagship',
-    processingMethod: 'structure',
-    customFields: [
-      { name: '', type: 'Auto Detect' },
-      { name: '', type: 'Auto Detect' },
-      { name: '', type: 'Auto Detect' },
-    ],
-    customPrompt: '',
-    files: [],
-  });
+  const { addBatch, updateBatch, batches } = useApp();
+  const isEditMode = !!editBatch;
 
-  const resetForm = () => {
-    setStep(1);
-    setFormData({
+  // For edit mode, start at step 2 (Configuration) since name is already set
+  const initialStep = isEditMode ? 2 : 1;
+  const [step, setStep] = useState(initialStep);
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const fieldsContainerRef = useRef(null);
+  const newFieldRef = useRef(null);
+  const [newlyAddedIndex, setNewlyAddedIndex] = useState(null);
+
+  const getInitialFormData = () => {
+    if (editBatch) {
+      return {
+        name: editBatch.name,
+        model: editBatch.model || 'flagship',
+        processingMethod: editBatch.processingMethod || 'structure',
+        customFields: editBatch.customFields?.map(f => ({ ...f })) || [
+          { name: '', type: 'Auto Detect' },
+          { name: '', type: 'Auto Detect' },
+          { name: '', type: 'Auto Detect' },
+        ],
+        customPrompt: editBatch.customPrompt || '',
+        files: [],
+      };
+    }
+    return {
       name: '',
       model: 'flagship',
       processingMethod: 'structure',
@@ -35,8 +44,99 @@ export function CustomWizard({ isOpen, onClose }) {
       ],
       customPrompt: '',
       files: [],
-    });
+    };
   };
+
+  const [formData, setFormData] = useState(getInitialFormData);
+
+  // Filter custom batches by processing method
+  const availableBatches = useMemo(() => {
+    return batches.filter(
+      (batch) =>
+        batch.type === 'custom' && batch.processingMethod === formData.processingMethod
+    );
+  }, [batches, formData.processingMethod]);
+
+  // Handle loading configuration from a previous batch
+  const handleLoadBatch = (batchId) => {
+    setSelectedBatchId(batchId);
+    if (!batchId) {
+      // Reset to defaults if "None" selected
+      setFormData((prev) => ({
+        ...prev,
+        customFields: [
+          { name: '', type: 'Auto Detect' },
+          { name: '', type: 'Auto Detect' },
+          { name: '', type: 'Auto Detect' },
+        ],
+        customPrompt: '',
+      }));
+      return;
+    }
+
+    const selectedBatch = batches.find((b) => b.id === batchId);
+    if (selectedBatch) {
+      setFormData((prev) => ({
+        ...prev,
+        model: selectedBatch.model || prev.model,
+        customFields: selectedBatch.customFields
+          ? selectedBatch.customFields.map((f) => ({ ...f }))
+          : prev.customFields,
+        customPrompt: selectedBatch.customPrompt || '',
+      }));
+    }
+  };
+
+  // Reset form when modal opens/closes or editBatch changes
+  const resetForm = () => {
+    setStep(1);
+    setSelectedBatchId('');
+    setFormData(getInitialFormData());
+  };
+
+  // Reset when editBatch changes or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setSelectedBatchId('');
+      if (editBatch) {
+        // Convert existing documents to file format for display
+        const existingFiles = editBatch.documents?.map(doc => ({
+          name: doc.filename,
+          size: doc.fileSize || 1000000,
+          valid: true,
+          isExisting: true,
+          id: doc.id,
+        })) || [];
+
+        setFormData({
+          name: editBatch.name,
+          model: editBatch.model || 'flagship',
+          processingMethod: editBatch.processingMethod || 'structure',
+          customFields: editBatch.customFields?.map(f => ({ ...f })) || [
+            { name: '', type: 'Auto Detect' },
+            { name: '', type: 'Auto Detect' },
+            { name: '', type: 'Auto Detect' },
+          ],
+          customPrompt: editBatch.customPrompt || '',
+          files: existingFiles,
+        });
+      } else {
+        setFormData({
+          name: '',
+          model: 'flagship',
+          processingMethod: 'structure',
+          customFields: [
+            { name: '', type: 'Auto Detect' },
+            { name: '', type: 'Auto Detect' },
+            { name: '', type: 'Auto Detect' },
+          ],
+          customPrompt: '',
+          files: [],
+        });
+      }
+    }
+  }, [isOpen, editBatch]);
 
   const handleClose = () => {
     resetForm();
@@ -53,12 +153,23 @@ export function CustomWizard({ isOpen, onClose }) {
 
   const addField = () => {
     if (formData.customFields.length < 50) {
+      const newIndex = formData.customFields.length;
       setFormData({
         ...formData,
         customFields: [...formData.customFields, { name: '', type: 'Auto Detect' }],
       });
+      setNewlyAddedIndex(newIndex);
     }
   };
+
+  // Focus and scroll to newly added field
+  useEffect(() => {
+    if (newlyAddedIndex !== null && newFieldRef.current) {
+      newFieldRef.current.focus();
+      newFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setNewlyAddedIndex(null);
+    }
+  }, [newlyAddedIndex, formData.customFields.length]);
 
   const removeField = (index) => {
     const newFields = [...formData.customFields];
@@ -73,6 +184,30 @@ export function CustomWizard({ isOpen, onClose }) {
   };
 
   const handleCreateBatch = () => {
+    if (isEditMode) {
+      // Update existing batch and regenerate extracted data
+      const updatedDocuments = editBatch.documents.map((doc, i) => ({
+        ...doc,
+        status: i < 3 ? 'processing' : 'completed',
+        extractedData: i >= 3 ? generateCustomMockData(formData, i) : null,
+        processedDate: i >= 3 ? new Date() : null,
+      }));
+
+      updateBatch(editBatch.id, {
+        name: formData.name,
+        model: formData.model,
+        processingMethod: formData.processingMethod,
+        customFields: formData.processingMethod === 'structure' ? formData.customFields : undefined,
+        customPrompt: formData.processingMethod === 'prompt' ? formData.customPrompt : undefined,
+        documents: updatedDocuments,
+        modifiedDate: new Date(),
+      });
+
+      handleClose();
+      // Stay on the same page, just close the modal
+      return;
+    }
+
     // Create mock documents (10-12 to showcase scrolling in picker)
     const mockDocCount = Math.floor(Math.random() * 3) + 10; // 10-12 documents
     const documents = Array.from({ length: mockDocCount }, (_, i) => ({
@@ -105,12 +240,10 @@ export function CustomWizard({ isOpen, onClose }) {
   // Mock file handling for UI demo
   const handleFileDrop = (e) => {
     e.preventDefault();
-    const mockFiles = [
-      { name: 'custom_doc_001.pdf', size: 2345678, valid: true },
-      { name: 'custom_doc_002.pdf', size: 1234567, valid: true },
-      { name: 'custom_doc_003.jpg', size: 987654, valid: true },
+    const newMockFiles = [
+      { name: `new_document_${Date.now()}.pdf`, size: 2345678, valid: true, isExisting: false },
     ];
-    setFormData({ ...formData, files: mockFiles });
+    setFormData({ ...formData, files: [...formData.files, ...newMockFiles] });
   };
 
   const removeFile = (index) => {
@@ -128,30 +261,25 @@ export function CustomWizard({ isOpen, onClose }) {
 
   const stepTitles = {
     1: 'Name Your Batch',
-    2: 'Model Selection',
-    3: 'Processing Method',
+    2: 'Configuration',
+    3: formData.processingMethod === 'structure' ? 'Define Fields' : 'Custom Prompt',
     4: 'Upload Documents',
   };
+
+  const totalSteps = 4;
+
+  // Only use xl width for step 3 (Define Fields/Custom Prompt)
+  const modalSize = step === 3 ? 'xl' : 'md';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      supertitle={`Step ${step} of 4`}
+      supertitle={`Custom Documents (Step ${step} of ${totalSteps})`}
       title={stepTitles[step]}
-      subtitle="Custom Documents"
-      size="md"
+      size={modalSize}
+      progress={step / totalSteps}
     >
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="h-1 bg-slate-100 rounded-full">
-          <div
-            className="h-full bg-purple-600 rounded-full transition-all duration-300"
-            style={{ width: `${(step / 4) * 100}%` }}
-          />
-        </div>
-      </div>
-
       {/* Step 1: Batch Name */}
       {step === 1 && (
         <div className="space-y-6">
@@ -175,14 +303,10 @@ export function CustomWizard({ isOpen, onClose }) {
         </div>
       )}
 
-      {/* Step 2: Model Selection */}
+      {/* Step 2: Model Selection + Processing Method */}
       {step === 2 && (
         <div className="space-y-6">
-          <div className="p-4 bg-slate-50 rounded-lg">
-            <p className="text-sm font-medium text-slate-700">Document Type</p>
-            <p className="text-slate-900">Custom Document</p>
-          </div>
-
+          {/* Model Selection */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-3">
               Model Selection <span className="text-red-500">*</span>
@@ -231,21 +355,10 @@ export function CustomWizard({ isOpen, onClose }) {
             </div>
           </div>
 
-          <div className="flex gap-3 justify-end">
-            <Button variant="secondary" onClick={handleBack}>
-              Back
-            </Button>
-            <Button onClick={handleNext}>Next</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Processing Method */}
-      {step === 3 && (
-        <div className="space-y-6">
+          {/* Processing Method */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-3">
-              Choose how to extract data:
+              Processing Method <span className="text-red-500">*</span>
             </label>
             <div className="space-y-3">
               <label
@@ -260,7 +373,10 @@ export function CustomWizard({ isOpen, onClose }) {
                   name="processingMethod"
                   value="structure"
                   checked={formData.processingMethod === 'structure'}
-                  onChange={(e) => setFormData({ ...formData, processingMethod: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, processingMethod: e.target.value });
+                    setSelectedBatchId('');
+                  }}
                   className="mt-1"
                 />
                 <div>
@@ -280,7 +396,10 @@ export function CustomWizard({ isOpen, onClose }) {
                   name="processingMethod"
                   value="prompt"
                   checked={formData.processingMethod === 'prompt'}
-                  onChange={(e) => setFormData({ ...formData, processingMethod: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, processingMethod: e.target.value });
+                    setSelectedBatchId('');
+                  }}
                   className="mt-1"
                 />
                 <div>
@@ -291,16 +410,53 @@ export function CustomWizard({ isOpen, onClose }) {
             </div>
           </div>
 
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" onClick={handleBack}>
+              Back
+            </Button>
+            <Button onClick={handleNext}>Next</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Load from Previous Batch + Define Fields/Prompt */}
+      {step === 3 && (
+        <div className="space-y-6">
+          {/* Load from Previous Batch Dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Load configuration from previous batch
+            </label>
+            <select
+              value={selectedBatchId}
+              onChange={(e) => handleLoadBatch(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+            >
+              <option value="">None (start fresh)</option>
+              {availableBatches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name}
+                </option>
+              ))}
+            </select>
+            {availableBatches.length === 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                No previous {formData.processingMethod === 'structure' ? 'structured' : 'prompt-based'} batches found
+              </p>
+            )}
+          </div>
+
           {/* Data Structure Fields */}
           {formData.processingMethod === 'structure' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-3">
                 Define Fields
               </label>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div ref={fieldsContainerRef} className="space-y-2 max-h-60 overflow-y-auto p-2">
                 {formData.customFields.map((field, index) => (
                   <div key={index} className="flex gap-2 items-center">
                     <input
+                      ref={index === formData.customFields.length - 1 ? newFieldRef : null}
                       type="text"
                       placeholder="Field Name"
                       value={field.name}
@@ -402,9 +558,9 @@ export function CustomWizard({ isOpen, onClose }) {
                     </div>
                     <button
                       onClick={() => removeFile(index)}
-                      className="p-1 text-slate-400 hover:text-slate-600"
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
@@ -416,7 +572,9 @@ export function CustomWizard({ isOpen, onClose }) {
             <Button variant="secondary" onClick={handleBack}>
               Back
             </Button>
-            <Button onClick={handleCreateBatch}>Create Batch</Button>
+            <Button onClick={handleCreateBatch}>
+              {isEditMode ? 'Re-run Batch' : 'Create Batch'}
+            </Button>
           </div>
         </div>
       )}

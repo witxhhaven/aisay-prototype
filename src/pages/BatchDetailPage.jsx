@@ -14,10 +14,13 @@ import {
   ZoomOut,
   RotateCcw,
   Move,
+  Settings2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DocumentPreview } from '../components/batch/DocumentPreview';
 import { DocumentPicker } from '../components/batch/DocumentPicker';
+import { CustomWizard } from '../components/dashboard/CustomWizard';
+import { PretrainedWizard } from '../components/dashboard/PretrainedWizard';
 import { Button } from '../components/shared';
 import { exportToCSV, exportSingleDocument } from '../utils/export';
 import { getBatchStats } from '../data/mockData';
@@ -37,6 +40,7 @@ export function BatchDetailPage() {
 
   const [currentDocIndex, setCurrentDocIndex] = useState(getInitialDocIndex);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [configureOpen, setConfigureOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
   const [zoom, setZoom] = useState(1);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
@@ -234,7 +238,17 @@ export function BatchDetailPage() {
             </div>
           )}
 
-          {/* Right Section - Export */}
+          {/* Right Section - Configure & Export */}
+          <div className="flex items-center gap-2">
+            {/* Configure Button */}
+            <button
+              onClick={() => setConfigureOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <Settings2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Configure</span>
+            </button>
+
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
               <Download className="w-4 h-4" />
@@ -291,6 +305,7 @@ export function BatchDetailPage() {
               </Menu.Items>
             </Transition>
           </Menu>
+          </div>
         </div>
       </header>
 
@@ -385,6 +400,21 @@ export function BatchDetailPage() {
         currentIndex={currentDocIndex}
         onSelect={setCurrentDocIndex}
       />
+
+      {/* Configure Wizard Modal */}
+      {batch.type === 'custom' ? (
+        <CustomWizard
+          isOpen={configureOpen}
+          onClose={() => setConfigureOpen(false)}
+          editBatch={batch}
+        />
+      ) : (
+        <PretrainedWizard
+          isOpen={configureOpen}
+          onClose={() => setConfigureOpen(false)}
+          editBatch={batch}
+        />
+      )}
     </div>
   );
 }

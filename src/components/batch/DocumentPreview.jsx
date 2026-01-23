@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 export function DocumentPreview({ document }) {
   if (document.status === 'processing') {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-100">
+      <div className="h-full flex items-start justify-center pt-24 bg-slate-100">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-slate-400 animate-spin mx-auto mb-4" />
           <p className="text-slate-500 italic">Processing document...</p>
